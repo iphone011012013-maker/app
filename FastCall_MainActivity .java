@@ -1,3 +1,10 @@
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.provider.CallLog;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
 // ===== إعدادات الـ Grid =====
 final int COLUMNS = 3;
 
@@ -16,6 +23,11 @@ final int COLOR_DIVIDER    = 0xFF252525;
 final int COLOR_BTN_TOP    = 0xFF1E1E1E;
 final int COLOR_BTN_BOT    = 0xFF161616;
 final int COLOR_BTN_BOR    = 0xFF2E2E2E;
+
+// ألوان أنواع المكالمات
+final int COLOR_INCOMING = 0xFF4ADE80;
+final int COLOR_OUTGOING = 0xFF60A5FA;
+final int COLOR_MISSED   = 0xFFFF4444;
 
 // ===== قائمة الأسماء =====
 final String[] names = {
@@ -47,28 +59,85 @@ final String[][] phones = {
 
 // ===== قائمة أسماء الصور =====
 final String[] imageNames = {
-    "abu ", "hassan ", "dad ", "eid ", "mohm ", "umm_amr ", "norhan ",
-    "khalid ", "johar ", "gemy ", "amr ", "am_magdy ", "amty ",
-    "mena ", "esraa ", "mamdouh ", "ahmed_mamdouh ", "om_ahmed ", "om_gemy ",
-    "mariam ", "khaly_hassan ", "azza ", "shaima ", "eman ",
-    "wafaa ", "moh ", "medo ", "yasser ", "karam ", "osama "
+    "abu", "hassan", "dad", "eid", "mohm", "umm_amr", "norhan",
+    "khalid", "johar", "gemy", "amr", "am_magdy", "amty",
+    "mena", "esraa", "mamdouh", "ahmed_mamdouh", "om_ahmed", "om_gemy",
+    "mariam", "khaly_hassan", "azza", "shaima", "eman",
+    "wafaa", "moh", "medo", "yasser", "karam", "osama"
 };
 
-// ===== تخصيص الـ ActionBar =====
+// ===== دالة مساعدة للحصول على الاسم من الرقم =====
+final java.util.Map<String, String> phoneToNameMap = new java.util.HashMap<>();
+for (int i = 0; i < names.length; i++) {
+    for (String ph : phones[i]) {
+        String normalized = ph.trim().replaceAll("[\\s\\-]", "");
+        if (normalized.startsWith("00")) normalized = "+" + normalized.substring(2);
+        else if (normalized.startsWith("0") && !normalized.startsWith("00")) normalized = "+2" + normalized.substring(1);
+        else if (!normalized.startsWith("+")) normalized = "+2" + normalized;
+        phoneToNameMap.put(normalized, names[i].trim());
+    }
+}
+
+// ===== تخصيص الـ ActionBar مع زر السجل =====
 try {
     android.app.ActionBar actionBar = getActionBar();
     if (actionBar != null) {
-        actionBar.setTitle("  ⚡ Fast Call");
         actionBar.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0xFF0A0A0A));
-        int titleId = getResources().getIdentifier("action_bar_title", "id", "android");
-        android.widget.TextView tv = (android.widget.TextView) findViewById(titleId);
-        if (tv != null) {
-            tv.setTextColor(COLOR_GOLD);
-            tv.setTextSize(20);
-            tv.setTypeface(null, android.graphics.Typeface.BOLD);
-        }
+        actionBar.setDisplayShowTitleEnabled(false);
+        actionBar.setDisplayShowCustomEnabled(true);
+
+        LinearLayout abLayout = new LinearLayout(this);
+        abLayout.setOrientation(LinearLayout.HORIZONTAL);
+        abLayout.setGravity(Gravity.CENTER_VERTICAL);
+        abLayout.setLayoutParams(new android.app.ActionBar.LayoutParams(
+            android.app.ActionBar.LayoutParams.MATCH_PARENT,
+            android.app.ActionBar.LayoutParams.MATCH_PARENT));
+        abLayout.setPadding(40, 0, 16, 0);
+
+        TextView abTitle = new TextView(this);
+        abTitle.setText("⚡ Fast Call");
+        abTitle.setTextColor(COLOR_GOLD);
+        abTitle.setTextSize(20);
+        abTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams titleP = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        abTitle.setLayoutParams(titleP);
+        abLayout.addView(abTitle);
+
+        // زر سجل المكالمات المخصص
+        TextView logBtn = new TextView(this);
+        logBtn.setText("📜");
+        logBtn.setTextSize(22);
+        logBtn.setGravity(Gravity.CENTER);
+        logBtn.setPadding(16, 8, 16, 8);
+        
+        logBtn.setOnTouchListener(new View.OnTouchListener() {
+            public boolean onTouch(View vv, android.view.MotionEvent ev) {
+                if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN)
+                    vv.animate().scaleX(0.85f).scaleY(0.85f).setDuration(60).start();
+                else if (ev.getAction() == android.view.MotionEvent.ACTION_UP || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
+                    vv.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
+                return false;
+            }
+        });
+        
+        logBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View vv) {
+                showCallLogDialog(phoneToNameMap, COLOR_GOLD, COLOR_BG, COLOR_CARD_IN, COLOR_GOLD_DIM, COLOR_TEXT_WHITE, COLOR_TEXT_DIM, COLOR_INCOMING, COLOR_OUTGOING, COLOR_MISSED);
+            }
+        });
+        abLayout.addView(logBtn);
+
+        actionBar.setCustomView(abLayout);
     }
 } catch (Exception e) {}
+
+// ===== طلب الأذونات =====
+if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
+    ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CALL_LOG}, 1001);
+}
+if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+    ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CALL_PHONE}, 1002);
+}
 
 // ===== ScrollView الرئيسي =====
 ScrollView scrollView = new ScrollView(this);
@@ -85,7 +154,7 @@ mainLayout.setLayoutParams(new ViewGroup.LayoutParams(
 mainLayout.setPadding(12, 16, 12, 24);
 
 // =====================================================
-// ===== Quick Dial Bar (الخانة + الأزرار الثلاثة) =====
+// ===== Quick Dial Bar =====
 // =====================================================
 android.graphics.drawable.GradientDrawable qdWrapperBg = new android.graphics.drawable.GradientDrawable();
 qdWrapperBg.setCornerRadius(22);
@@ -102,7 +171,6 @@ qdCard.setLayoutParams(qdCardP);
 qdCard.setBackground(qdWrapperBg);
 qdCard.setPadding(16, 16, 16, 16);
 
-// --- عنوان البطاقة ---
 LinearLayout qdTitleRow = new LinearLayout(this);
 qdTitleRow.setOrientation(LinearLayout.HORIZONTAL);
 qdTitleRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -131,7 +199,6 @@ qdTitleRow.addView(qdTitle);
 
 qdCard.addView(qdTitleRow);
 
-// --- 1. خانة إدخال الرقم ---
 final android.widget.EditText qdInput = new android.widget.EditText(this);
 qdInput.setHint("أدخل رقم الهاتف...");
 qdInput.setHintTextColor(0xFF555555);
@@ -155,16 +222,15 @@ qdInputBg.setColor(0xFF181810);
 qdInputBg.setStroke(1, 0xFF3A3218);
 qdInput.setBackground(qdInputBg);
 
-qdCard.addView(qdInput); // إضافة الخانة أولاً
+qdCard.addView(qdInput);
 
-// --- 2. صف الأزرار الثلاثة (أسفل الخانة مباشرة) ---
 LinearLayout qdRow = new LinearLayout(this);
 qdRow.setOrientation(LinearLayout.HORIZONTAL);
 qdRow.setGravity(Gravity.CENTER_VERTICAL);
 qdRow.setLayoutParams(new LinearLayout.LayoutParams(
     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-// [زر اللصق]
+// زر اللصق
 LinearLayout pasteBtn = new LinearLayout(this);
 pasteBtn.setOrientation(LinearLayout.VERTICAL);
 pasteBtn.setGravity(Gravity.CENTER);
@@ -197,23 +263,26 @@ pasteBtn.setOnTouchListener(new View.OnTouchListener() {
 });
 pasteBtn.setOnClickListener(new View.OnClickListener() {
     public void onClick(View vv) {
-        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+        android.content.ClipboardManager cm =
+            (android.content.ClipboardManager) getSystemService(android.content.Context.CLIPBOARD_SERVICE);
         if (cm != null && cm.hasPrimaryClip()) {
             android.content.ClipData.Item item = cm.getPrimaryClip().getItemAt(0);
             if (item != null && item.getText() != null) {
                 String pasted = item.getText().toString().trim();
                 qdInput.setText(pasted);
                 qdInput.setSelection(pasted.length());
-                android.widget.Toast.makeText(MainActivity.this, "✓ تم اللصق", android.widget.Toast.LENGTH_SHORT).show();
+                android.widget.Toast.makeText(MainActivity.this,
+                    "✓ تم اللصق", android.widget.Toast.LENGTH_SHORT).show();
             }
         } else {
-            android.widget.Toast.makeText(MainActivity.this, "الحافظة فارغة", android.widget.Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(MainActivity.this,
+                "الحافظة فارغة", android.widget.Toast.LENGTH_SHORT).show();
         }
     }
 });
 qdRow.addView(pasteBtn);
 
-// [زر فودافون كاش]
+// زر فودافون كاش
 LinearLayout vcBtn = new LinearLayout(this);
 vcBtn.setOrientation(LinearLayout.VERTICAL);
 vcBtn.setGravity(Gravity.CENTER);
@@ -231,7 +300,8 @@ TextView vcIco = new TextView(this);
 vcIco.setText("💸");
 vcIco.setTextSize(18);
 vcIco.setGravity(Gravity.CENTER);
-vcIco.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+vcIco.setLayoutParams(new LinearLayout.LayoutParams(
+    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 vcBtn.addView(vcIco);
 
 TextView vcLbl = new TextView(this);
@@ -240,7 +310,8 @@ vcLbl.setTextColor(0xFFFF4444);
 vcLbl.setTextSize(7.5f);
 vcLbl.setGravity(Gravity.CENTER);
 vcLbl.setTypeface(null, android.graphics.Typeface.BOLD);
-LinearLayout.LayoutParams vcLblP = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+LinearLayout.LayoutParams vcLblP = new LinearLayout.LayoutParams(
+    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 vcLblP.setMargins(0, 2, 0, 0);
 vcLbl.setLayoutParams(vcLblP);
 vcBtn.addView(vcLbl);
@@ -288,7 +359,8 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
         vcDlgTitle.setTextSize(18);
         vcDlgTitle.setGravity(Gravity.CENTER);
         vcDlgTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-        LinearLayout.LayoutParams vcTitleP = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams vcTitleP = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         vcTitleP.setMargins(0, 0, 0, 22);
         vcDlgTitle.setLayoutParams(vcTitleP);
         vcRoot.addView(vcDlgTitle);
@@ -299,7 +371,8 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
         vcPhLbl.setTextSize(11);
         vcPhLbl.setTypeface(null, android.graphics.Typeface.BOLD);
         vcPhLbl.setTextDirection(android.view.View.TEXT_DIRECTION_RTL);
-        LinearLayout.LayoutParams vcPhLblP = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams vcPhLblP = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         vcPhLblP.setMargins(4, 0, 0, 6);
         vcPhLbl.setLayoutParams(vcPhLblP);
         vcRoot.addView(vcPhLbl);
@@ -322,9 +395,11 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
             vcPhInput.setSelection(existingNum.length());
         }
 
-        LinearLayout.LayoutParams vcPhInputP = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams vcPhInputP = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         vcPhInputP.setMargins(0, 0, 0, 16);
         vcPhInput.setLayoutParams(vcPhInputP);
+
         android.graphics.drawable.GradientDrawable vcPhBg = new android.graphics.drawable.GradientDrawable();
         vcPhBg.setCornerRadius(14);
         vcPhBg.setColor(0xFF1A0808);
@@ -338,7 +413,8 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
         vcAmtLbl.setTextSize(11);
         vcAmtLbl.setTypeface(null, android.graphics.Typeface.BOLD);
         vcAmtLbl.setTextDirection(android.view.View.TEXT_DIRECTION_RTL);
-        LinearLayout.LayoutParams vcAmtLblP = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams vcAmtLblP = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         vcAmtLblP.setMargins(4, 0, 0, 6);
         vcAmtLbl.setLayoutParams(vcAmtLblP);
         vcRoot.addView(vcAmtLbl);
@@ -353,9 +429,12 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
         vcAmtInput.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         vcAmtInput.setPadding(18, 16, 18, 16);
         vcAmtInput.setSingleLine(true);
-        LinearLayout.LayoutParams vcAmtInputP = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+
+        LinearLayout.LayoutParams vcAmtInputP = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         vcAmtInputP.setMargins(0, 0, 0, 24);
         vcAmtInput.setLayoutParams(vcAmtInputP);
+
         android.graphics.drawable.GradientDrawable vcAmtBg = new android.graphics.drawable.GradientDrawable();
         vcAmtBg.setCornerRadius(14);
         vcAmtBg.setColor(0xFF1A0808);
@@ -364,7 +443,8 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
         vcRoot.addView(vcAmtInput);
 
         View vcDiv = new View(MainActivity.this);
-        LinearLayout.LayoutParams vcDivP = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1);
+        LinearLayout.LayoutParams vcDivP = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 1);
         vcDivP.setMargins(0, 0, 0, 20);
         vcDiv.setLayoutParams(vcDivP);
         vcDiv.setBackgroundColor(0xFF3A0000);
@@ -373,7 +453,8 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
         LinearLayout vcBtnRow = new LinearLayout(MainActivity.this);
         vcBtnRow.setOrientation(LinearLayout.HORIZONTAL);
         vcBtnRow.setGravity(Gravity.CENTER);
-        vcBtnRow.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        vcBtnRow.setLayoutParams(new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView vcCancelBtn = new TextView(MainActivity.this);
         vcCancelBtn.setText("إلغاء");
@@ -382,9 +463,11 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
         vcCancelBtn.setGravity(Gravity.CENTER);
         vcCancelBtn.setTypeface(null, android.graphics.Typeface.BOLD);
         vcCancelBtn.setPadding(0, 18, 0, 18);
-        LinearLayout.LayoutParams vcCancelP = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        LinearLayout.LayoutParams vcCancelP = new LinearLayout.LayoutParams(0,
+            ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         vcCancelP.setMargins(0, 0, 10, 0);
         vcCancelBtn.setLayoutParams(vcCancelP);
+
         android.graphics.drawable.GradientDrawable vcCancelBg = new android.graphics.drawable.GradientDrawable();
         vcCancelBg.setCornerRadius(14);
         vcCancelBg.setColor(0xFF1A1A1A);
@@ -402,33 +485,40 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
         vcTransferBtn.setGravity(Gravity.CENTER);
         vcTransferBtn.setTypeface(null, android.graphics.Typeface.BOLD);
         vcTransferBtn.setPadding(0, 18, 0, 18);
-        LinearLayout.LayoutParams vcTransferP = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.5f);
+        LinearLayout.LayoutParams vcTransferP = new LinearLayout.LayoutParams(0,
+            ViewGroup.LayoutParams.WRAP_CONTENT, 1.5f);
         vcTransferBtn.setLayoutParams(vcTransferP);
+
         android.graphics.drawable.GradientDrawable vcTransferBg = new android.graphics.drawable.GradientDrawable();
         vcTransferBg.setCornerRadius(14);
         vcTransferBg.setColors(new int[]{0xFFCC0000, 0xFF880000});
         vcTransferBg.setOrientation(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM);
         vcTransferBg.setStroke(1, 0xFFEE0000);
         vcTransferBtn.setBackground(vcTransferBg);
+
         vcTransferBtn.setOnTouchListener(new View.OnTouchListener() {
             public boolean onTouch(View vv, android.view.MotionEvent ev) {
                 if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN)
                     vv.animate().scaleX(0.95f).scaleY(0.95f).setDuration(60).start();
-                else if (ev.getAction() == android.view.MotionEvent.ACTION_UP || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
+                else if (ev.getAction() == android.view.MotionEvent.ACTION_UP
+                      || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
                     vv.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
                 return false;
             }
         });
+
         vcTransferBtn.setOnClickListener(new View.OnClickListener() {
             public void onClick(View vv) {
                 String vcNum = vcPhInput.getText().toString().trim();
                 String vcAmt = vcAmtInput.getText().toString().trim();
                 if (vcNum.isEmpty()) {
-                    android.widget.Toast.makeText(MainActivity.this, "أدخل رقم التليفون", android.widget.Toast.LENGTH_SHORT).show();
+                    android.widget.Toast.makeText(MainActivity.this,
+                         "أدخل رقم التليفون", android.widget.Toast.LENGTH_SHORT).show();
                     return;
                 }
                 if (vcAmt.isEmpty() || vcAmt.equals("0")) {
-                    android.widget.Toast.makeText(MainActivity.this, "أدخل المبلغ", android.widget.Toast.LENGTH_SHORT).show();
+                    android.widget.Toast.makeText(MainActivity.this,
+                         "أدخل المبلغ", android.widget.Toast.LENGTH_SHORT).show();
                     return;
                 }
                 vcDlg.dismiss();
@@ -438,14 +528,18 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
                 startActivity(ussdIntent);
             }
         });
+
         vcBtnRow.addView(vcTransferBtn);
         vcRoot.addView(vcBtnRow);
 
         vcDlg.setContentView(vcRoot);
         android.view.Window vcW = vcDlg.getWindow();
         if (vcW != null) {
-            vcW.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
-            vcW.setLayout((int)(getResources().getDisplayMetrics().widthPixels * 0.88f), ViewGroup.LayoutParams.WRAP_CONTENT);
+            vcW.setBackgroundDrawable(
+                new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+            vcW.setLayout(
+                (int)(getResources().getDisplayMetrics().widthPixels * 0.88f),
+                ViewGroup.LayoutParams.WRAP_CONTENT);
             vcW.setGravity(Gravity.CENTER);
             vcW.getAttributes().windowAnimations = android.R.style.Animation_Dialog;
         }
@@ -454,41 +548,42 @@ vcBtn.setOnClickListener(new View.OnClickListener() {
 });
 qdRow.addView(vcBtn);
 
-// [زر الاتصال]
+// زر الاتصال
 LinearLayout callNowBtn = new LinearLayout(this);
 callNowBtn.setOrientation(LinearLayout.VERTICAL);
 callNowBtn.setGravity(Gravity.CENTER);
 callNowBtn.setLayoutParams(new LinearLayout.LayoutParams(0, 56, 1f));
+callNowBtn.setPadding(0, 0, 0, 0);
 android.graphics.drawable.GradientDrawable callNowBg = new android.graphics.drawable.GradientDrawable();
 callNowBg.setCornerRadius(14);
 callNowBg.setColors(new int[]{0xFF2A6B1A, 0xFF174010});
 callNowBg.setOrientation(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM);
 callNowBg.setStroke(1, 0xFF3A9022);
 callNowBtn.setBackground(callNowBg);
-
 TextView callNowIco = new TextView(this);
 callNowIco.setText("📞");
 callNowIco.setTextSize(20);
 callNowIco.setGravity(Gravity.CENTER);
-callNowIco.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+callNowIco.setLayoutParams(new LinearLayout.LayoutParams(
+    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 callNowBtn.addView(callNowIco);
-
 TextView callNowLbl = new TextView(this);
 callNowLbl.setText("اتصال");
 callNowLbl.setTextColor(0xFF4ADE80);
 callNowLbl.setTextSize(9f);
 callNowLbl.setGravity(Gravity.CENTER);
 callNowLbl.setTypeface(null, android.graphics.Typeface.BOLD);
-LinearLayout.LayoutParams callNowLblP = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+LinearLayout.LayoutParams callNowLblP = new LinearLayout.LayoutParams(
+    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 callNowLblP.setMargins(0, 2, 0, 0);
 callNowLbl.setLayoutParams(callNowLblP);
 callNowBtn.addView(callNowLbl);
-
 callNowBtn.setOnTouchListener(new View.OnTouchListener() {
     public boolean onTouch(View vv, android.view.MotionEvent ev) {
         if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN)
             vv.animate().scaleX(0.88f).scaleY(0.88f).setDuration(60).start();
-        else if (ev.getAction() == android.view.MotionEvent.ACTION_UP || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
+        else if (ev.getAction() == android.view.MotionEvent.ACTION_UP
+                || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
             vv.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
         return false;
     }
@@ -497,7 +592,8 @@ callNowBtn.setOnClickListener(new View.OnClickListener() {
     public void onClick(View vv) {
         String num = qdInput.getText().toString().trim();
         if (num.isEmpty()) {
-            android.widget.Toast.makeText(MainActivity.this, "أدخل رقم أو الصقه أولاً", android.widget.Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(MainActivity.this,
+                "أدخل رقم أو الصقه أولاً", android.widget.Toast.LENGTH_SHORT).show();
             return;
         }
         Intent ci = new Intent(Intent.ACTION_CALL);
@@ -506,12 +602,11 @@ callNowBtn.setOnClickListener(new View.OnClickListener() {
     }
 });
 qdRow.addView(callNowBtn);
-
-qdCard.addView(qdRow); // إضافة صف الأزرار أسفل الخانة
-mainLayout.addView(qdCard); // إضافة البطاقة كاملة للـ Layout الرئيسي
+qdCard.addView(qdRow);
+mainLayout.addView(qdCard);
 
 // =====================================================
-// ===== Header: خط + عداد + خط =====
+// ===== Header =====
 // =====================================================
 LinearLayout headerRow = new LinearLayout(this);
 headerRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -520,29 +615,25 @@ LinearLayout.LayoutParams hrP = new LinearLayout.LayoutParams(
     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 hrP.setMargins(8, 0, 8, 20);
 headerRow.setLayoutParams(hrP);
-
 View lineL = new View(this);
 lineL.setLayoutParams(new LinearLayout.LayoutParams(0, 2, 1f));
 lineL.setBackgroundColor(COLOR_GOLD_DIM);
-
 TextView counterTv = new TextView(this);
 counterTv.setText("  " + names.length + " جهة اتصال  ");
 counterTv.setTextColor(COLOR_GOLD_DIM);
 counterTv.setTextSize(11);
 counterTv.setGravity(Gravity.CENTER);
 counterTv.setTypeface(null, android.graphics.Typeface.BOLD);
-
 View lineR = new View(this);
 lineR.setLayoutParams(new LinearLayout.LayoutParams(0, 2, 1f));
 lineR.setBackgroundColor(COLOR_GOLD_DIM);
-
 headerRow.addView(lineL);
 headerRow.addView(counterTv);
 headerRow.addView(lineR);
 mainLayout.addView(headerRow);
 
 // =====================================================
-// ===== بناء الـ Grid =====
+// ===== بناء الـ Grid (نفس الكود السابق بدون تغيير) =====
 // =====================================================
 int totalItems = names.length;
 int currentRowItems = 0;
@@ -555,13 +646,13 @@ for (int i = 0; i < totalItems; i++) {
         rowLayout.setLayoutParams(new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
-    
     final int index = i;
     final String personName = names[i];
     final int numCount = phones[i].length;
 
     FrameLayout cardWrapper = new FrameLayout(this);
-    LinearLayout.LayoutParams cwP = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+    LinearLayout.LayoutParams cwP = new LinearLayout.LayoutParams(
+        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
     cwP.setMargins(7, 7, 7, 7);
     cardWrapper.setLayoutParams(cwP);
 
@@ -611,7 +702,7 @@ for (int i = 0; i < totalItems; i++) {
 
     boolean loaded = false;
     try {
-        int rid = getResources().getIdentifier(imageNames[i], "drawable", getPackageName());
+        int rid = getResources().getIdentifier(imageNames[i].trim(), "drawable", getPackageName());
         if (rid != 0) { imgV.setImageResource(rid); loaded = true; }
     } catch (Exception e) {}
 
@@ -657,7 +748,6 @@ for (int i = 0; i < totalItems; i++) {
     nameTv.setSingleLine(true);
     nameTv.setHorizontallyScrolling(true);
     nameTv.setTypeface(null, android.graphics.Typeface.BOLD);
-    
     boolean isAr = false;
     for (int c = 0; c < personName.length(); c++) {
         if (Character.UnicodeBlock.of(personName.charAt(c)) == Character.UnicodeBlock.ARABIC) {
@@ -691,7 +781,8 @@ for (int i = 0; i < totalItems; i++) {
         public boolean onTouch(View v, android.view.MotionEvent ev) {
             if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN)
                 v.animate().scaleX(0.94f).scaleY(0.94f).setDuration(80).start();
-            else if (ev.getAction() == android.view.MotionEvent.ACTION_UP || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
+            else if (ev.getAction() == android.view.MotionEvent.ACTION_UP
+                   || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
                 v.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
             return false;
         }
@@ -776,7 +867,8 @@ for (int i = 0; i < totalItems; i++) {
                 callBtn.setOrientation(LinearLayout.HORIZONTAL);
                 callBtn.setGravity(Gravity.CENTER_VERTICAL);
                 callBtn.setPadding(16, 16, 16, 16);
-                LinearLayout.LayoutParams cbP = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                LinearLayout.LayoutParams cbP = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
                 cbP.setMargins(0, 0, 8, 0);
                 callBtn.setLayoutParams(cbP);
 
@@ -798,7 +890,8 @@ for (int i = 0; i < totalItems; i++) {
 
                 LinearLayout phTexts = new LinearLayout(MainActivity.this);
                 phTexts.setOrientation(LinearLayout.VERTICAL);
-                phTexts.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                phTexts.setLayoutParams(new LinearLayout.LayoutParams(
+                     0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
                 if (phones[index].length > 1) {
                     TextView phLabel = new TextView(MainActivity.this);
@@ -819,9 +912,10 @@ for (int i = 0; i < totalItems; i++) {
 
                 callBtn.setOnTouchListener(new View.OnTouchListener() {
                     public boolean onTouch(View vv, android.view.MotionEvent ev) {
-                        if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN)
+                         if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN)
                             vv.animate().scaleX(0.96f).scaleY(0.96f).setDuration(60).start();
-                        else if (ev.getAction() == android.view.MotionEvent.ACTION_UP || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
+                        else if (ev.getAction() == android.view.MotionEvent.ACTION_UP
+                              || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
                             vv.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
                         return false;
                     }
@@ -873,8 +967,9 @@ for (int i = 0; i < totalItems; i++) {
                 waBtn.setOnTouchListener(new View.OnTouchListener() {
                     public boolean onTouch(View vv, android.view.MotionEvent ev) {
                         if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN)
-                            vv.animate().scaleX(0.93f).scaleY(0.93f).setDuration(60).start();
-                        else if (ev.getAction() == android.view.MotionEvent.ACTION_UP || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
+                             vv.animate().scaleX(0.93f).scaleY(0.93f).setDuration(60).start();
+                        else if (ev.getAction() == android.view.MotionEvent.ACTION_UP
+                               || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
                             vv.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
                         return false;
                     }
@@ -889,17 +984,21 @@ for (int i = 0; i < totalItems; i++) {
                         else if (wn.startsWith("+")) wn = wn.substring(1);
                         final String finalNum = wn;
                         try {
-                            Intent wi = new Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/" + finalNum));
+                            Intent wi = new Intent(Intent.ACTION_VIEW,
+                                Uri.parse("https://wa.me/" + finalNum));
                             wi.setPackage("com.whatsapp");
                             startActivity(wi);
                         } catch (Exception e) {
-                            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/" + finalNum)));
+                            startActivity(new Intent(Intent.ACTION_VIEW,
+                                 Uri.parse("https://wa.me/" + finalNum)));
                         }
                     }
                 });
+
                 phRow.addView(waBtn);
                 numsCont.addView(phRow);
             }
+
             root.addView(numsCont);
 
             View div2 = new View(MainActivity.this);
@@ -932,8 +1031,11 @@ for (int i = 0; i < totalItems; i++) {
             dlg.setContentView(root);
             android.view.Window dw = dlg.getWindow();
             if (dw != null) {
-                dw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
-                dw.setLayout((int)(getResources().getDisplayMetrics().widthPixels * 0.88f), ViewGroup.LayoutParams.WRAP_CONTENT);
+                dw.setBackgroundDrawable(
+                    new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+                dw.setLayout(
+                    (int)(getResources().getDisplayMetrics().widthPixels * 0.88f),
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
                 dw.setGravity(Gravity.CENTER);
                 dw.getAttributes().windowAnimations = android.R.style.Animation_Dialog;
             }
@@ -965,3 +1067,356 @@ if (currentRowItems > 0) {
 
 scrollView.addView(mainLayout);
 setContentView(scrollView);
+
+} // نهاية onCreate
+
+// =====================================================
+// ===== دالة عرض سجل المكالمات المخصصة =====
+// =====================================================
+private void showCallLogDialog(
+        final java.util.Map<String, String> phoneToNameMap,
+        final int COLOR_GOLD, final int COLOR_BG, final int COLOR_CARD_IN,
+        final int COLOR_GOLD_DIM, final int COLOR_TEXT_WHITE, final int COLOR_TEXT_DIM,
+        final int COLOR_INCOMING, final int COLOR_OUTGOING, final int COLOR_MISSED) {
+
+    final android.app.Dialog dlg = new android.app.Dialog(this);
+    dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+    dlg.setCanceledOnTouchOutside(true);
+
+    LinearLayout root = new LinearLayout(this);
+    root.setOrientation(LinearLayout.VERTICAL);
+    root.setBackgroundColor(COLOR_BG);
+
+    android.graphics.drawable.GradientDrawable dlgBg = new android.graphics.drawable.GradientDrawable();
+    dlgBg.setCornerRadius(28);
+    dlgBg.setColors(new int[]{0xFF1A1A1A, 0xFF0F0F0F});
+    dlgBg.setOrientation(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM);
+    dlgBg.setStroke(2, COLOR_GOLD_DIM);
+    root.setBackground(dlgBg);
+
+    // Header
+    LinearLayout header = new LinearLayout(this);
+    header.setOrientation(LinearLayout.VERTICAL);
+    header.setGravity(Gravity.CENTER);
+    header.setPadding(20, 20, 20, 14);
+
+    View indBar = new View(this);
+    LinearLayout.LayoutParams ibP = new LinearLayout.LayoutParams(50, 5);
+    ibP.gravity = Gravity.CENTER_HORIZONTAL;
+    ibP.setMargins(0, 0, 0, 14);
+    indBar.setLayoutParams(ibP);
+    android.graphics.drawable.GradientDrawable indBg = new android.graphics.drawable.GradientDrawable();
+    indBg.setColor(COLOR_GOLD);
+    indBg.setCornerRadius(10);
+    indBar.setBackground(indBg);
+    header.addView(indBar);
+
+    TextView titleTv = new TextView(this);
+    titleTv.setText("📜 سجل المكالمات");
+    titleTv.setTextColor(COLOR_GOLD);
+    titleTv.setTextSize(18);
+    titleTv.setGravity(Gravity.CENTER);
+    titleTv.setTypeface(null, android.graphics.Typeface.BOLD);
+    header.addView(titleTv);
+
+    TextView subtitleTv = new TextView(this);
+    subtitleTv.setText("آخر 50 مكالمة");
+    subtitleTv.setTextColor(COLOR_TEXT_DIM);
+    subtitleTv.setTextSize(11);
+    subtitleTv.setGravity(Gravity.CENTER);
+    LinearLayout.LayoutParams stP = new LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    stP.setMargins(0, 4, 0, 0);
+    subtitleTv.setLayoutParams(stP);
+    header.addView(subtitleTv);
+
+    root.addView(header);
+
+    View div1 = new View(this);
+    div1.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1));
+    div1.setBackgroundColor(COLOR_GOLD_DIM);
+    root.addView(div1);
+
+    // قائمة المكالمات (ScrollView)
+    ScrollView scrollCont = new ScrollView(this);
+    scrollCont.setLayoutParams(new LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT, 
+        (int)(getResources().getDisplayMetrics().heightPixels * 0.6f)));
+    scrollCont.setVerticalScrollBarEnabled(false);
+
+    LinearLayout callsList = new LinearLayout(this);
+    callsList.setOrientation(LinearLayout.VERTICAL);
+    callsList.setPadding(12, 8, 12, 8);
+
+    // قراءة سجل المكالمات
+    if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
+        TextView noPerm = new TextView(this);
+        noPerm.setText("⚠️ لم يتم منح إذن الوصول لسجل المكالمات");
+        noPerm.setTextColor(COLOR_MISSED);
+        noPerm.setTextSize(13);
+        noPerm.setGravity(Gravity.CENTER);
+        noPerm.setPadding(20, 40, 20, 40);
+        callsList.addView(noPerm);
+    } else {
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(
+                CallLog.Calls.CONTENT_URI,
+                new String[]{
+                    CallLog.Calls.NUMBER,
+                    CallLog.Calls.TYPE,
+                    CallLog.Calls.DATE,
+                    CallLog.Calls.DURATION,
+                    CallLog.Calls.CACHED_NAME
+                },
+                null, null,
+                CallLog.Calls.DATE + " DESC LIMIT 50"
+            );
+
+            if (cursor == null || cursor.getCount() == 0) {
+                TextView emptyTv = new TextView(this);
+                emptyTv.setText("لا توجد مكالمات في السجل");
+                emptyTv.setTextColor(COLOR_TEXT_DIM);
+                emptyTv.setTextSize(13);
+                emptyTv.setGravity(Gravity.CENTER);
+                emptyTv.setPadding(20, 40, 20, 40);
+                callsList.addView(emptyTv);
+            } else {
+                while (cursor.moveToNext()) {
+                    final String number = cursor.getString(0);
+                    final int type = cursor.getInt(1);
+                    final long date = cursor.getLong(2);
+                    final int duration = cursor.getInt(3);
+                    final String cachedName = cursor.getString(4);
+
+                    // تحديد الاسم
+                    String displayName = "رقم غير معروف";
+                    String normalizedNum = number != null ? number.replaceAll("[\\s\\-]", "") : "";
+                    if (normalizedNum.startsWith("00")) normalizedNum = "+" + normalizedNum.substring(2);
+                    else if (normalizedNum.startsWith("0")) normalizedNum = "+2" + normalizedNum.substring(1);
+                    else if (!normalizedNum.startsWith("+")) normalizedNum = "+2" + normalizedNum;
+
+                    if (phoneToNameMap.containsKey(normalizedNum)) {
+                        displayName = phoneToNameMap.get(normalizedNum);
+                    } else if (cachedName != null && !cachedName.isEmpty()) {
+                        displayName = cachedName;
+                    } else if (number != null && !number.isEmpty()) {
+                        displayName = number;
+                    }
+
+                    // نوع المكالمة والأيقونة واللون
+                    String typeText, typeIcon;
+                    int typeColor;
+                    switch (type) {
+                        case CallLog.Calls.INCOMING_TYPE:
+                            typeText = "واردة"; typeIcon = "📥"; typeColor = COLOR_INCOMING; break;
+                        case CallLog.Calls.OUTGOING_TYPE:
+                            typeText = "صادرة"; typeIcon = "📤"; typeColor = COLOR_OUTGOING; break;
+                        case CallLog.Calls.MISSED_TYPE:
+                            typeText = "فائتة"; typeIcon = "❌"; typeColor = COLOR_MISSED; break;
+                        default:
+                            typeText = "أخرى"; typeIcon = "📞"; typeColor = COLOR_TEXT_DIM; break;
+                    }
+
+                    // التاريخ
+                    String dateStr = new java.text.SimpleDateFormat("dd/MM • hh:mm a", 
+                        java.util.Locale.getDefault()).format(new java.util.Date(date));
+
+                    // المدة
+                    String durationStr = duration > 0 ? 
+                        String.format(java.util.Locale.getDefault(), "%02d:%02d", duration / 60, duration % 60) : 
+                        "لم يرد";
+
+                    // بناء عنصر المكالمة
+                    LinearLayout callItem = new LinearLayout(this);
+                    callItem.setOrientation(LinearLayout.HORIZONTAL);
+                    callItem.setGravity(Gravity.CENTER_VERTICAL);
+                    callItem.setPadding(14, 14, 14, 14);
+                    LinearLayout.LayoutParams ciP = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    ciP.setMargins(0, 0, 0, 8);
+                    callItem.setLayoutParams(ciP);
+
+                    android.graphics.drawable.GradientDrawable itemBg = new android.graphics.drawable.GradientDrawable();
+                    itemBg.setCornerRadius(16);
+                    itemBg.setColors(new int[]{0xFF1C1C1C, 0xFF141414});
+                    itemBg.setStroke(1, 0xFF2A2A2A);
+                    callItem.setBackground(itemBg);
+
+                    // أيقونة النوع
+                    TextView iconTv = new TextView(this);
+                    iconTv.setText(typeIcon);
+                    iconTv.setTextSize(22);
+                    iconTv.setGravity(Gravity.CENTER);
+                    LinearLayout.LayoutParams iconP = new LinearLayout.LayoutParams(
+                        48, 48);
+                    iconP.setMargins(0, 0, 12, 0);
+                    iconTv.setLayoutParams(iconP);
+
+                    android.graphics.drawable.GradientDrawable iconBg = new android.graphics.drawable.GradientDrawable();
+                    iconBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+                    iconBg.setColor(0x22FFFFFF);
+                    iconTv.setBackground(iconBg);
+                    callItem.addView(iconTv);
+
+                    // المعلومات
+                    LinearLayout infoLayout = new LinearLayout(this);
+                    infoLayout.setOrientation(LinearLayout.VERTICAL);
+                    infoLayout.setLayoutParams(new LinearLayout.LayoutParams(0, 
+                        ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+                    TextView nameTv2 = new TextView(this);
+                    nameTv2.setText(displayName);
+                    nameTv2.setTextColor(COLOR_TEXT_WHITE);
+                    nameTv2.setTextSize(14);
+                    nameTv2.setTypeface(null, android.graphics.Typeface.BOLD);
+                    nameTv2.setSingleLine(true);
+                    nameTv2.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    
+                    boolean isAr = false;
+                    for (int c = 0; c < displayName.length(); c++) {
+                        if (Character.UnicodeBlock.of(displayName.charAt(c)) == Character.UnicodeBlock.ARABIC) {
+                            isAr = true; break;
+                        }
+                    }
+                    nameTv2.setTextDirection(isAr ? android.view.View.TEXT_DIRECTION_RTL : android.view.View.TEXT_DIRECTION_LTR);
+                    infoLayout.addView(nameTv2);
+
+                    LinearLayout detailsRow = new LinearLayout(this);
+                    detailsRow.setOrientation(LinearLayout.HORIZONTAL);
+                    detailsRow.setGravity(Gravity.CENTER_VERTICAL);
+                    LinearLayout.LayoutParams drP = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    drP.setMargins(0, 4, 0, 0);
+                    detailsRow.setLayoutParams(drP);
+
+                    TextView typeTv = new TextView(this);
+                    typeTv.setText(typeText);
+                    typeTv.setTextColor(typeColor);
+                    typeTv.setTextSize(10);
+                    typeTv.setTypeface(null, android.graphics.Typeface.BOLD);
+                    detailsRow.addView(typeTv);
+
+                    TextView dotTv = new TextView(this);
+                    dotTv.setText(" • ");
+                    dotTv.setTextColor(COLOR_TEXT_DIM);
+                    dotTv.setTextSize(10);
+                    detailsRow.addView(dotTv);
+
+                    TextView dateTv = new TextView(this);
+                    dateTv.setText(dateStr);
+                    dateTv.setTextColor(COLOR_TEXT_DIM);
+                    dateTv.setTextSize(10);
+                    detailsRow.addView(dateTv);
+
+                    TextView dotTv2 = new TextView(this);
+                    dotTv2.setText(" • ");
+                    dotTv2.setTextColor(COLOR_TEXT_DIM);
+                    dotTv2.setTextSize(10);
+                    detailsRow.addView(dotTv2);
+
+                    TextView durTv = new TextView(this);
+                    durTv.setText(durationStr);
+                    durTv.setTextColor(COLOR_TEXT_DIM);
+                    durTv.setTextSize(10);
+                    detailsRow.addView(durTv);
+
+                    infoLayout.addView(detailsRow);
+                    callItem.addView(infoLayout);
+
+                    // زر الاتصال السريع
+                    TextView quickCallBtn = new TextView(this);
+                    quickCallBtn.setText("📞");
+                    quickCallBtn.setTextSize(18);
+                    quickCallBtn.setGravity(Gravity.CENTER);
+                    quickCallBtn.setPadding(12, 12, 12, 12);
+                    android.graphics.drawable.GradientDrawable qcBg = new android.graphics.drawable.GradientDrawable();
+                    qcBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+                    qcBg.setColor(0xFF2A6B1A);
+                    quickCallBtn.setBackground(qcBg);
+                    LinearLayout.LayoutParams qcP = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    qcP.setMargins(8, 0, 0, 0);
+                    quickCallBtn.setLayoutParams(qcP);
+
+                    final String finalNumber = number;
+                    quickCallBtn.setOnTouchListener(new View.OnTouchListener() {
+                        public boolean onTouch(View vv, android.view.MotionEvent ev) {
+                            if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN)
+                                vv.animate().scaleX(0.85f).scaleY(0.85f).setDuration(60).start();
+                            else if (ev.getAction() == android.view.MotionEvent.ACTION_UP
+                                  || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
+                                vv.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
+                            return false;
+                        }
+                    });
+                    quickCallBtn.setOnClickListener(new View.OnClickListener() {
+                        public void onClick(View vv) {
+                            if (finalNumber != null && !finalNumber.isEmpty()) {
+                                Intent ci = new Intent(Intent.ACTION_CALL);
+                                ci.setData(Uri.parse("tel:" + finalNumber));
+                                startActivity(ci);
+                            }
+                        }
+                    });
+                    callItem.addView(quickCallBtn);
+
+                    callsList.addView(callItem);
+                }
+            }
+        } catch (Exception e) {
+            TextView errTv = new TextView(this);
+            errTv.setText("خطأ في قراءة السجل: " + e.getMessage());
+            errTv.setTextColor(COLOR_MISSED);
+            errTv.setTextSize(12);
+            errTv.setPadding(20, 40, 20, 40);
+            callsList.addView(errTv);
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+    }
+
+    scrollCont.addView(callsList);
+    root.addView(scrollCont);
+
+    View div2 = new View(this);
+    div2.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1));
+    div2.setBackgroundColor(COLOR_GOLD_DIM);
+    root.addView(div2);
+
+    // زر الإغلاق
+    TextView closeBtn = new TextView(this);
+    closeBtn.setText("إغلاق");
+    closeBtn.setTextColor(0xFF777777);
+    closeBtn.setTextSize(14);
+    closeBtn.setGravity(Gravity.CENTER);
+    closeBtn.setPadding(0, 18, 0, 20);
+    closeBtn.setTypeface(null, android.graphics.Typeface.BOLD);
+    closeBtn.setLayoutParams(new LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    closeBtn.setOnClickListener(new View.OnClickListener() {
+        public void onClick(View vv) { dlg.dismiss(); }
+    });
+    closeBtn.setOnTouchListener(new View.OnTouchListener() {
+        public boolean onTouch(View vv, android.view.MotionEvent ev) {
+            if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN)
+                ((TextView) vv).setTextColor(COLOR_TEXT_WHITE);
+            else ((TextView) vv).setTextColor(0xFF777777);
+            return false;
+        }
+    });
+    root.addView(closeBtn);
+
+    dlg.setContentView(root);
+    android.view.Window dw = dlg.getWindow();
+    if (dw != null) {
+        dw.setBackgroundDrawable(
+            new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+        dw.setLayout(
+            (int)(getResources().getDisplayMetrics().widthPixels * 0.92f),
+            ViewGroup.LayoutParams.WRAP_CONTENT);
+        dw.setGravity(Gravity.CENTER);
+        dw.getAttributes().windowAnimations = android.R.style.Animation_Dialog;
+    }
+    dlg.show();
+}
